@@ -5,9 +5,18 @@ import pyplot
 
 
 #INITAL SETUP 
+
+def call_api_one(key):
+
+def call_api_two(key):
+
+def call_api_three(key):
+    
+
 def create_tables():
     """Create database tables."""
     pass  # Implementation goes here
+
 
 
 #DATA FETCHING
