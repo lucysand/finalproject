@@ -5,110 +5,87 @@ DB_PATH = "nyc_data.db"
 def get_connection():
     return sqlite3.connect(DB_PATH)
 
-# ---------------------------------------
-# 1. Trees per capita
-# ---------------------------------------
-def calculate_trees_per_capita():
+# -------------------------
+# 1. Trees per borough
+# -------------------------
+def calculate_trees_per_borough():
     conn = get_connection()
     cur = conn.cursor()
-
     cur.execute("""
-        SELECT t.borough, t.tree_count, d.population,
-               CAST(t.tree_count AS FLOAT) / d.population AS trees_per_capita
+        SELECT borough, COUNT(*) AS tree_count
+        FROM trees
+        GROUP BY borough;
+    """)
+    rows = cur.fetchall()
+    conn.close()
+    return rows
+
+# -------------------------
+# 2. Black population percent by borough
+# -------------------------
+def calculate_black_percent():
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT borough, black_percent
+        FROM demographics;
+    """)
+    rows = cur.fetchall()
+    conn.close()
+    return rows
+
+# -------------------------
+# 3. Total crime per borough
+# -------------------------
+def calculate_crime_counts():
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT borough, COUNT(*) AS crime_count
+        FROM crime
+        GROUP BY borough;
+    """)
+    rows = cur.fetchall()
+    conn.close()
+    return rows
+
+# -------------------------
+# 4. Total collisions per borough
+# -------------------------
+def calculate_collision_counts():
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT borough, COUNT(*) AS collision_count
+        FROM collisions
+        GROUP BY borough;
+    """)
+    rows = cur.fetchall()
+    conn.close()
+    return rows
+
+# -------------------------
+# 5. Tree count vs Black population percent (JOIN)
+# -------------------------
+def calculate_trees_vs_black_percent():
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT t.borough, COUNT(t.tree_id) AS tree_count, d.black_percent
         FROM trees t
-        JOIN demographics d ON t.borough = d.borough;
+        JOIN demographics d ON t.borough = d.borough
+        GROUP BY t.borough;
     """)
-
     rows = cur.fetchall()
     conn.close()
     return rows
 
-# ---------------------------------------
-# 2. Collisions per 1,000 residents
-# ---------------------------------------
-def calculate_collisions_rate():
-    conn = get_connection()
-    cur = conn.cursor()
-
-    cur.execute("""
-        SELECT c.borough,
-               c.number_of_persons_injured,
-               c.number_of_persons_killed,
-               d.population,
-               (CAST(c.number_of_persons_injured AS FLOAT) / d.population) * 1000
-                    AS injured_per_1000,
-               (CAST(c.number_of_persons_killed AS FLOAT) / d.population) * 1000
-                    AS killed_per_1000
-        FROM collisions c
-        JOIN demographics d ON c.borough = d.borough;
-    """)
-
-    rows = cur.fetchall()
-    conn.close()
-    return rows
-
-# ---------------------------------------
-# 3. Crime per 1,000 residents
-# ---------------------------------------
-def calculate_crime_rate():
-    conn = get_connection()
-    cur = conn.cursor()
-
-    cur.execute("""
-        SELECT c.borough,
-               c.felony, c.misdemeanor, c.violation,
-               d.population,
-               (CAST(c.felony AS FLOAT) / d.population) * 1000 AS felony_rate,
-               (CAST(c.misdemeanor AS FLOAT) / d.population) * 1000 AS misdemeanor_rate,
-               (CAST(c.violation AS FLOAT) / d.population) * 1000 AS violation_rate
-        FROM crime c
-        JOIN demographics d ON c.borough = d.borough;
-    """)
-
-    rows = cur.fetchall()
-    conn.close()
-    return rows
-
-# ---------------------------------------
-# 4. Trees vs income correlation dataset
-# ---------------------------------------
-def get_tree_income_data():
-    conn = get_connection()
-    cur = conn.cursor()
-
-    cur.execute("""
-        SELECT t.borough, t.tree_count, d.median_income
-        FROM trees t
-        JOIN demographics d
-        ON t.borough = d.borough;
-    """)
-
-    rows = cur.fetchall()
-    conn.close()
-    return rows
-
-# ---------------------------------------
-# 5. Crime severity index (weighted)
-# ---------------------------------------
-def calculate_crime_severity_index():
-    """
-    Weighting example:
-    felony = 3
-    misdemeanor = 2
-    violation = 1
-    """
-    conn = get_connection()
-    cur = conn.cursor()
-
-    cur.execute("""
-        SELECT borough,
-               felony,
-               misdemeanor,
-               violation,
-               (felony * 3 + misdemeanor * 2 + violation * 1) AS severity_score
-        FROM crime;
-    """)
-
-    rows = cur.fetchall()
-    conn.close()
-    return rows
+# -------------------------
+# Optional: print summaries for testing
+# -------------------------
+if __name__ == "__main__":
+    print("Trees per borough:", calculate_trees_per_borough())
+    print("Black population percent:", calculate_black_percent())
+    print("Crime counts per borough:", calculate_crime_counts())
+    print("Collision counts per borough:", calculate_collision_counts())
+    print("Trees vs Black percent:", calculate_trees_vs_black_percent())

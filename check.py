@@ -1,10 +1,12 @@
 import sqlite3
 
-conn = sqlite3.connect("/Users/lucysanders/Desktop/SI201/finalproject/nyc_data.db")
+DB_PATH = "nyc_data.db"
+conn = sqlite3.connect(DB_PATH)
 cur = conn.cursor()
 
-cur.execute("PRAGMA table_info(demographics);")
-for col in cur.fetchall():
-    print(col)
+# List all tables
+cur.execute("SELECT name FROM sqlite_master WHERE type='table';")
+tables = cur.fetchall()
+print(tables)
 
 conn.close()

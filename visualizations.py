@@ -6,159 +6,128 @@ DB_PATH = "nyc_data.db"
 def get_connection():
     return sqlite3.connect(DB_PATH)
 
-# ---------------------------------------------------
-# 1. Bar chart: Trees per capita by borough
-# ---------------------------------------------------
-def plot_trees_per_capita():
-    conn = sqlite3.connect("nyc_data.db")
+# -------------------------
+# 1. Bar chart: Trees per borough
+# -------------------------
+def plot_trees_per_borough():
+    conn = get_connection()
     cur = conn.cursor()
-
-    cur.execute("""
-        SELECT 
-            t.borough,
-            COUNT(*) AS tree_count,
-            d.black_percent
-        FROM trees t
-        JOIN demographics d ON t.borough = d.borough
-        GROUP BY t.borough;
-    """)
-
+    cur.execute("SELECT borough, COUNT(*) FROM trees GROUP BY borough;")
     rows = cur.fetchall()
     conn.close()
 
     boroughs = [r[0] for r in rows]
     tree_counts = [r[1] for r in rows]
 
-    plt.figure(figsize=(10, 6))
-    plt.bar(boroughs, tree_counts)
+    plt.figure(figsize=(8,6))
+    plt.bar(boroughs, tree_counts, color="#2ca02c")  # green
     plt.xlabel("Borough")
     plt.ylabel("Tree Count")
     plt.title("Tree Count by Borough")
-    plt.savefig("trees_per_capita.png")
+    plt.savefig("trees_per_borough.png")
     plt.close()
 
-# ---------------------------------------------------
-# 2. Bar chart: Collisions injured per 1,000 residents
-# ---------------------------------------------------
-def plot_collisions_per_1000():
+# -------------------------
+# 2. Bar chart: Black population percent
+# -------------------------
+def plot_black_percent():
     conn = get_connection()
     cur = conn.cursor()
-
-    cur.execute("""
-        SELECT c.borough,
-               (CAST(c.number_of_persons_injured AS FLOAT) / d.population) * 1000
-        FROM collisions c
-        JOIN demographics d ON c.borough = d.borough;
-    """)
-
-    data = cur.fetchall()
+    cur.execute("SELECT borough, black_percent FROM demographics;")
+    rows = cur.fetchall()
     conn.close()
 
-    boroughs = [row[0] for row in data]
-    injured_rate = [row[1] for row in data]
+    boroughs = [r[0] for r in rows]
+    black_percent = [r[1] for r in rows]
 
-    plt.figure()
-    plt.bar(boroughs, injured_rate)
+    plt.figure(figsize=(8,6))
+    plt.bar(boroughs, black_percent, color="#ff7f0e")  # orange
     plt.xlabel("Borough")
-    plt.ylabel("Injuries per 1,000 residents")
-    plt.title("Traffic Injuries per 1,000 Residents")
-    plt.savefig("collisions_injured_per_1000.png")
+    plt.ylabel("Black Population (%)")
+    plt.title("Black Population Percent by Borough")
+    plt.savefig("black_percent.png")
     plt.close()
 
-# ---------------------------------------------------
-# 3. Bar chart: Crime severity index
-# ---------------------------------------------------
-def plot_crime_severity():
+# -------------------------
+# 3. Bar chart: Total crime per borough
+# -------------------------
+def plot_crime_counts():
     conn = get_connection()
     cur = conn.cursor()
-
-    cur.execute("""
-        SELECT borough, (felony * 3 + misdemeanor * 2 + violation) AS score
-        FROM crime;
-    """)
-
-    data = cur.fetchall()
+    cur.execute("SELECT borough, COUNT(*) FROM crime GROUP BY borough;")
+    rows = cur.fetchall()
     conn.close()
 
-    boroughs = [row[0] for row in data]
-    scores = [row[1] for row in data]
+    boroughs = [r[0] for r in rows]
+    crime_counts = [r[1] for r in rows]
 
-    plt.figure()
-    plt.bar(boroughs, scores)
+    plt.figure(figsize=(8,6))
+    plt.bar(boroughs, crime_counts, color="#d62728")  # red
     plt.xlabel("Borough")
-    plt.ylabel("Severity score")
-    plt.title("Crime Severity Index by Borough")
-    plt.savefig("crime_severity_index.png")
+    plt.ylabel("Total Crime Reports")
+    plt.title("Crime Reports by Borough")
+    plt.savefig("crime_counts.png")
     plt.close()
 
-# ---------------------------------------------------
-# 4. Scatter plot: Tree count vs median income
-# ---------------------------------------------------
-def plot_trees_vs_income():
+# -------------------------
+# 4. Bar chart: Total collisions per borough
+# -------------------------
+def plot_collision_counts():
     conn = get_connection()
     cur = conn.cursor()
+    cur.execute("SELECT borough, COUNT(*) FROM collisions GROUP BY borough;")
+    rows = cur.fetchall()
+    conn.close()
 
+    boroughs = [r[0] for r in rows]
+    collision_counts = [r[1] for r in rows]
+
+    plt.figure(figsize=(8,6))
+    plt.bar(boroughs, collision_counts, color="#1f77b4")  # blue
+    plt.xlabel("Borough")
+    plt.ylabel("Total Collisions")
+    plt.title("Collisions by Borough")
+    plt.savefig("collision_counts.png")
+    plt.close()
+
+# -------------------------
+# 5. Scatter plot: Tree count vs Black population percent (JOIN)
+# -------------------------
+def plot_trees_vs_black_percent():
+    conn = get_connection()
+    cur = conn.cursor()
     cur.execute("""
-        SELECT t.tree_count, d.median_income
+        SELECT t.borough, COUNT(t.tree_id) AS tree_count, d.black_percent
         FROM trees t
-        JOIN demographics d ON t.borough = d.borough;
+        JOIN demographics d ON t.borough = d.borough
+        GROUP BY t.borough
     """)
-
-    data = cur.fetchall()
+    rows = cur.fetchall()
     conn.close()
 
-    trees = [row[0] for row in data]
-    income = [row[1] for row in data]
+    tree_counts = [r[1] for r in rows]
+    black_percent = [r[2] for r in rows]
+    boroughs = [r[0] for r in rows]
 
-    plt.figure()
-    plt.scatter(trees, income)
-    plt.xlabel("Tree count")
-    plt.ylabel("Median income")
-    plt.title("Relationship Between Tree Count and Median Income")
-    plt.savefig("trees_vs_income.png")
+    plt.figure(figsize=(8,6))
+    plt.scatter(tree_counts, black_percent, color="#9467bd", s=100)  # purple
+    for i, b in enumerate(boroughs):
+        plt.text(tree_counts[i], black_percent[i]+0.5, b, ha='center')
+    plt.xlabel("Tree Count")
+    plt.ylabel("Black Population (%)")
+    plt.title("Tree Count vs Black Population Percent by Borough")
+    plt.savefig("trees_vs_black_percent.png")
     plt.close()
 
-# ---------------------------------------------------
-# 5. Stacked bar: Crime breakdown per borough
-# ---------------------------------------------------
-def plot_crime_breakdown():
-    conn = get_connection()
-    cur = conn.cursor()
-
-    cur.execute("""
-        SELECT borough, felony, misdemeanor, violation
-        FROM crime;
-    """)
-
-    data = cur.fetchall()
-    conn.close()
-
-    boroughs = [row[0] for row in data]
-    felony = [row[1] for row in data]
-    misdemeanor = [row[2] for row in data]
-    violation = [row[3] for row in data]
-
-    plt.figure()
-    plt.bar(boroughs, felony, label="Felony")
-    plt.bar(boroughs, misdemeanor, bottom=felony, label="Misdemeanor")
-    plt.bar(boroughs, violation,
-            bottom=[felony[i] + misdemeanor[i] for i in range(len(felony))],
-            label="Violation")
-
-    plt.xlabel("Borough")
-    plt.ylabel("Total incidents")
-    plt.title("Crime Breakdown by Borough")
-    plt.legend()
-    plt.savefig("crime_breakdown.png")
-    plt.close()
-
+# -------------------------
+# Main
+# -------------------------
 def main():
-    plot_trees_per_capita()
-    plot_collisions_per_1000()
-    plot_crime_severity()
-    plot_trees_vs_income()
-    plot_crime_breakdown()
-
+    plot_trees_per_borough()
+    plot_black_percent()
+    plot_crime_counts()
+    plot_collision_counts()
+    plot_trees_vs_black_percent()
 
 if __name__ == "__main__":
     main()
