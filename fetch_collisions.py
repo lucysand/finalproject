@@ -2,80 +2,82 @@ import requests
 import sqlite3
 import time
 
-DB_PATH = "nyc_data.db"   # change if needed
-TABLE_NAME = "collisions"
+DB_PATH = "nyc_data.db"
+COLLISIONS_API = "https://data.cityofnewyork.us/resource/h9gi-nx95.json"
 
-API_URL = "https://data.cityofnewyork.us/resource/h9gi-nx95.json"
 BATCH_SIZE = 25
-MAX_BATCHES = 5   # 20 * 500 = 10,000 rows
+MAX_BATCHES = 5
 
-def create_table():
-    conn = sqlite3.connect(DB_PATH)
+def get_connection():
+    return sqlite3.connect(DB_PATH, timeout=10)
+
+def create_tables():
+    conn = get_connection()
     cur = conn.cursor()
-    cur.execute(f"""
-        CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
+
+    # Collisions table (general info)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS collisions (
             collision_id INTEGER PRIMARY KEY,
-            borough TEXT,
-            persons_injured INTEGER
+            borough TEXT
         )
     """)
+
+    # Collision injuries table (linked via integer key)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS collision_injuries (
+            collision_id INTEGER PRIMARY KEY,
+            persons_injured INTEGER,
+            FOREIGN KEY(collision_id) REFERENCES collisions(collision_id)
+        )
+    """)
+
     conn.commit()
     conn.close()
 
-def fetch_collisions(offset):
-    params = {
-        "$limit": BATCH_SIZE,
-        "$offset": offset,
-        "$select": "collision_id, borough, number_of_persons_injured",
-        "$where": "borough IS NOT NULL"
-    }
-    resp = requests.get(API_URL, params=params)
-    resp.raise_for_status()
-    return resp.json()
-
-def insert_rows(rows):
-    conn = sqlite3.connect(DB_PATH)
+def insert_collision_data(batch_data):
+    conn = get_connection()
     cur = conn.cursor()
-    inserted = 0
 
-    for r in rows:
-        cid = r.get("collision_id")
-        borough = r.get("borough")
-        injured = r.get("number_of_persons_injured") or 0
+    for row in batch_data:
+        collision_id = int(row.get("collision_id"))
+        borough = row.get("borough")
+        persons_injured = int(row.get("number_of_persons_injured", 0))
 
-        if not cid or not borough:
-            continue
+        # Insert into collisions
+        cur.execute("""
+            INSERT OR IGNORE INTO collisions (collision_id, borough)
+            VALUES (?, ?)
+        """, (collision_id, borough))
 
-        cur.execute(f"""
-            INSERT INTO {TABLE_NAME}(collision_id, borough, persons_injured)
-            VALUES (?, ?, ?)
-            ON CONFLICT(collision_id)
-            DO UPDATE SET 
-                borough=excluded.borough,
-                persons_injured=excluded.persons_injured
-        """, (cid, borough, injured))
-
-        inserted += 1
+        # Insert into collision_injuries
+        cur.execute("""
+            INSERT OR IGNORE INTO collision_injuries (collision_id, persons_injured)
+            VALUES (?, ?)
+        """, (collision_id, persons_injured))
 
     conn.commit()
     conn.close()
-    return inserted
+
+def fetch_collisions(offset=0, limit=25):
+    params = {
+        "$limit": limit,
+        "$offset": offset
+    }
+    response = requests.get(COLLISIONS_API, params=params)
+    response.raise_for_status()
+    return response.json()
+
+def main():
+    create_tables()
+    for batch_num in range(MAX_BATCHES):
+        offset = batch_num * BATCH_SIZE
+        print(f"Fetching batch {batch_num+1} (offset {offset})...")
+        data = fetch_collisions(offset=offset, limit=BATCH_SIZE)
+        insert_collision_data(data)
+        time.sleep(1)  # be kind to the API
+
+    print("Finished fetching collision data.")
 
 if __name__ == "__main__":
-    create_table()
-
-    offset = 0
-    for i in range(MAX_BATCHES):
-        print(f"Fetching batch {i+1}/{MAX_BATCHES} (offset {offset})...")
-        rows = fetch_collisions(offset)
-        if not rows:
-            print("No more rows.")
-            break
-
-        count = insert_rows(rows)
-        print(f"Inserted/updated {count} rows.")
-
-        offset += BATCH_SIZE
-        time.sleep(0.2)
-
-    print("Collisions import complete.")
+    main()
