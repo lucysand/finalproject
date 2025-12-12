@@ -1,0 +1,27 @@
+=== Collisions per Borough ===
+Bronx: 11
+Brooklyn: 30
+Manhattan: 10
+Queens: 19
+Staten Island: 3
+
+=== Average Persons Injured per Borough ===
+Bronx: 0.73
+Brooklyn: 0.73
+Manhattan: 0.50
+Queens: 0.42
+Staten Island: 0.33
+
+=== Black Population Percent by Borough ===
+Manhattan: 0.24%
+Brooklyn: 0.39%
+Queens: 0.19%
+Bronx: 0.29%
+Staten Island: 0.14%
+
+=== Average Yelp Rating per Borough ===
+Bronx: 4.34
+Brooklyn: 4.00
+Manhattan: 4.40
+Queens: 4.36
+Staten Island: 4.25

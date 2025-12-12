@@ -1,88 +1,71 @@
 # calculations.py
-from db_utils import get_connection  # <-- use the correct DB path
+from db_utils import get_connection
+from pathlib import Path
 
-# -----------------------
-# Trees
-# -----------------------
-def calc_trees_per_borough():
-    with get_connection() as conn:
-        cur = conn.cursor()
-        cur.execute("""
-            SELECT borough, COUNT(tree_id) 
-            FROM trees 
-            WHERE borough IS NOT NULL AND borough != '' 
-            GROUP BY borough
-        """)
-        return cur.fetchall()
+OUTPUT_FILE = Path(__file__).parent / "calculations.txt"
 
-# -----------------------
-# Demographics
-# -----------------------
-def calc_black_percent():
-    with get_connection() as conn:
-        cur = conn.cursor()
-        cur.execute("""
-            SELECT borough, black_percent 
-            FROM demographics 
-            WHERE borough IS NOT NULL AND borough != ''
-            ORDER BY borough
-        """)
-        return cur.fetchall()
+def run_calculations():
+    conn = get_connection()
+    cur = conn.cursor()
 
-# -----------------------
-# Crime
-# -----------------------
-def calc_crime_counts():
-    with get_connection() as conn:
-        cur = conn.cursor()
-        cur.execute("""
-            SELECT borough, COUNT(cmplnt_num) 
-            FROM crime 
-            WHERE borough IS NOT NULL AND borough != '' 
-            GROUP BY borough
-        """)
-        return cur.fetchall()
+    # 1. Total collisions per borough
+    cur.execute("""
+        SELECT b.borough_name, COUNT(c.collision_id) 
+        FROM collisions c
+        JOIN boroughs b ON c.borough_id = b.borough_id
+        GROUP BY b.borough_name
+    """)
+    collisions_per_borough = cur.fetchall()
 
-# -----------------------
-# Collisions (main table)
-# -----------------------
-def calc_collision_counts():
-    with get_connection() as conn:
-        cur = conn.cursor()
-        cur.execute("""
-            SELECT borough, COUNT(collision_id) 
-            FROM collisions 
-            WHERE borough IS NOT NULL AND borough != '' 
-            GROUP BY borough
-        """)
-        return cur.fetchall()
+    # 2. Average persons injured per borough
+    cur.execute("""
+        SELECT b.borough_name, AVG(ci.persons_injured)
+        FROM collision_injuries ci
+        JOIN collisions c ON ci.collision_id = c.collision_id
+        JOIN boroughs b ON c.borough_id = b.borough_id
+        GROUP BY b.borough_name
+    """)
+    avg_injuries_per_borough = cur.fetchall()
 
-# -----------------------
-# Collisions: persons injured
-# -----------------------
-def calc_collision_injuries():
-    with get_connection() as conn:
-        cur = conn.cursor()
-        cur.execute("""
-            SELECT c.borough, SUM(ci.persons_injured) 
-            FROM collisions c
-            JOIN collision_injuries ci ON c.collision_id = ci.collision_id
-            WHERE c.borough IS NOT NULL AND c.borough != ''
-            GROUP BY c.borough
-        """)
-        return cur.fetchall()
+    # 3. Average black population percentage by borough
+    cur.execute("""
+        SELECT b.borough_name, d.black_percent
+        FROM demographics d
+        JOIN boroughs b ON d.borough_id = b.borough_id
+    """)
+    black_percent = cur.fetchall()
 
-# -----------------------
-# Trees vs Black %
-# -----------------------
-def calc_trees_vs_black():
-    with get_connection() as conn:
-        cur = conn.cursor()
-        cur.execute("""
-            SELECT t.borough, COUNT(t.tree_id) AS tree_count, d.black_percent
-            FROM trees t
-            JOIN demographics d ON t.borough = d.borough
-            WHERE t.borough IS NOT NULL AND t.borough != ''
-            GROUP BY t.borough
-        """)
-        return cur.fetchall()
+    # 4. Average Yelp rating by borough
+    cur.execute("""
+        SELECT b.borough_name, AVG(y.rating)
+        FROM yelp y
+        JOIN boroughs b ON y.borough_id = b.borough_id
+        GROUP BY b.borough_name
+    """)
+    avg_yelp = cur.fetchall()
+
+    conn.close()
+
+    # Write results to txt in working folder
+    with open(OUTPUT_FILE, "w") as f:
+        f.write("=== Collisions per Borough ===\n")
+        for borough, count in collisions_per_borough:
+            f.write(f"{borough}: {count}\n")
+
+        f.write("\n=== Average Persons Injured per Borough ===\n")
+        for borough, avg in avg_injuries_per_borough:
+            f.write(f"{borough}: {avg:.2f}\n")
+
+        f.write("\n=== Black Population Percent by Borough ===\n")
+        for borough, percent in black_percent:
+            f.write(f"{borough}: {percent:.2f}%\n")
+
+        f.write("\n=== Average Yelp Rating per Borough ===\n")
+        for borough, rating in avg_yelp:
+            f.write(f"{borough}: {rating:.2f}\n")
+
+    print(f"Calculations saved to {OUTPUT_FILE}")
+
+
+if __name__ == "__main__":
+    run_calculations()
