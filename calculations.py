@@ -1,91 +1,88 @@
-import sqlite3
+# calculations.py
+from db_utils import get_connection  # <-- use the correct DB path
 
-DB_PATH = "nyc_data.db"
+# -----------------------
+# Trees
+# -----------------------
+def calc_trees_per_borough():
+    with get_connection() as conn:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT borough, COUNT(tree_id) 
+            FROM trees 
+            WHERE borough IS NOT NULL AND borough != '' 
+            GROUP BY borough
+        """)
+        return cur.fetchall()
 
-def get_connection():
-    return sqlite3.connect(DB_PATH)
+# -----------------------
+# Demographics
+# -----------------------
+def calc_black_percent():
+    with get_connection() as conn:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT borough, black_percent 
+            FROM demographics 
+            WHERE borough IS NOT NULL AND borough != ''
+            ORDER BY borough
+        """)
+        return cur.fetchall()
 
-# -------------------------
-# 1. Trees per borough
-# -------------------------
-def calculate_trees_per_borough():
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("""
-        SELECT borough, COUNT(*) AS tree_count
-        FROM trees
-        GROUP BY borough;
-    """)
-    rows = cur.fetchall()
-    conn.close()
-    return rows
+# -----------------------
+# Crime
+# -----------------------
+def calc_crime_counts():
+    with get_connection() as conn:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT borough, COUNT(cmplnt_num) 
+            FROM crime 
+            WHERE borough IS NOT NULL AND borough != '' 
+            GROUP BY borough
+        """)
+        return cur.fetchall()
 
-# -------------------------
-# 2. Black population percent by borough
-# -------------------------
-def calculate_black_percent():
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("""
-        SELECT borough, black_percent
-        FROM demographics;
-    """)
-    rows = cur.fetchall()
-    conn.close()
-    return rows
+# -----------------------
+# Collisions (main table)
+# -----------------------
+def calc_collision_counts():
+    with get_connection() as conn:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT borough, COUNT(collision_id) 
+            FROM collisions 
+            WHERE borough IS NOT NULL AND borough != '' 
+            GROUP BY borough
+        """)
+        return cur.fetchall()
 
-# -------------------------
-# 3. Total crime per borough
-# -------------------------
-def calculate_crime_counts():
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("""
-        SELECT borough, COUNT(*) AS crime_count
-        FROM crime
-        GROUP BY borough;
-    """)
-    rows = cur.fetchall()
-    conn.close()
-    return rows
+# -----------------------
+# Collisions: persons injured
+# -----------------------
+def calc_collision_injuries():
+    with get_connection() as conn:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT c.borough, SUM(ci.persons_injured) 
+            FROM collisions c
+            JOIN collision_injuries ci ON c.collision_id = ci.collision_id
+            WHERE c.borough IS NOT NULL AND c.borough != ''
+            GROUP BY c.borough
+        """)
+        return cur.fetchall()
 
-# -------------------------
-# 4. Total collisions per borough
-# -------------------------
-def calculate_collision_counts():
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("""
-        SELECT borough, COUNT(*) AS collision_count
-        FROM collisions
-        GROUP BY borough;
-    """)
-    rows = cur.fetchall()
-    conn.close()
-    return rows
-
-# -------------------------
-# 5. Tree count vs Black population percent (JOIN)
-# -------------------------
-def calculate_trees_vs_black_percent():
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("""
-        SELECT t.borough, COUNT(t.tree_id) AS tree_count, d.black_percent
-        FROM trees t
-        JOIN demographics d ON t.borough = d.borough
-        GROUP BY t.borough;
-    """)
-    rows = cur.fetchall()
-    conn.close()
-    return rows
-
-# -------------------------
-# Optional: print summaries for testing
-# -------------------------
-if __name__ == "__main__":
-    print("Trees per borough:", calculate_trees_per_borough())
-    print("Black population percent:", calculate_black_percent())
-    print("Crime counts per borough:", calculate_crime_counts())
-    print("Collision counts per borough:", calculate_collision_counts())
-    print("Trees vs Black percent:", calculate_trees_vs_black_percent())
+# -----------------------
+# Trees vs Black %
+# -----------------------
+def calc_trees_vs_black():
+    with get_connection() as conn:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT t.borough, COUNT(t.tree_id) AS tree_count, d.black_percent
+            FROM trees t
+            JOIN demographics d ON t.borough = d.borough
+            WHERE t.borough IS NOT NULL AND t.borough != ''
+            GROUP BY t.borough
+        """)
+        return cur.fetchall()

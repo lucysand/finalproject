@@ -1,48 +1,37 @@
 import requests
-from db_utils import get_connection, row_exists, create_tables
+from db_utils import get_connection
 
-API_URL = "https://data.cityofnewyork.us/resource/uvpi-gqnh.json"
-LIMIT_PER_RUN = 25
+URL = "https://data.cityofnewyork.us/resource/uvpi-gqnh.json"
 
-def fetch_tree_batch(offset=0):
-    create_tables()  # ensures table exists
+def fetch_trees():
+    limit = 25
+    offset = 0
+    batches = 5
 
-    params = {"$limit": LIMIT_PER_RUN, "$offset": offset}
-    headers = {"X-App-Token": "m2Zj3gBpqhFVI4W9XcJoz91ZE"}
-    resp = requests.get(API_URL, params=params, headers=headers)
-    resp.raise_for_status()
-    data = resp.json()
-    print(f"Fetched {len(data)} records from API")
-    return data
+    for i in range(batches):
+        print(f"[trees] fetching batch {i+1} offset {offset}")
+        params = {"$limit": limit, "$offset": offset}
 
-def insert_trees(records):
-    conn = get_connection()
-    cur = conn.cursor()
-    inserted = 0
+        r = requests.get(URL, params=params)
+        r.raise_for_status()
+        data = r.json()
 
-    for row in records:
-        tree_id = int(row.get("tree_id", -1))
-        borough = row.get("boroname")  # <- updated key
-        if tree_id == -1 or borough is None:
-            print(f"Skipping row: missing tree_id or borough -> {row}")
-            continue
+        conn = get_connection()
+        cur = conn.cursor()
 
-        if not row_exists("trees", "tree_id", tree_id):
-            cur.execute(
-                "INSERT INTO trees (tree_id, borough) VALUES (?, ?)",
-                (tree_id, borough)
-            )
-            inserted += 1
-            print(f"Inserted tree_id {tree_id}, borough {borough}")
-        else:
-            print(f"Skipping tree_id {tree_id}: already exists")
+        for row in data:
+            tree_id = row.get("tree_id")
+            borough = row.get("boroname")
 
-    conn.commit()
-    conn.close()
-    print(f"Inserted {inserted} new tree rows (max {LIMIT_PER_RUN})")
+            if tree_id:
+                cur.execute("""
+                    INSERT OR IGNORE INTO trees (tree_id, borough)
+                    VALUES (?, ?)
+                """, (tree_id, borough))
+
+        conn.commit()
+        conn.close()
+        offset += limit
 
 if __name__ == "__main__":
-    for offset in range(0, 400, 25):
-        records = fetch_tree_batch(offset=offset)
-        insert_trees(records)
-
+    fetch_trees()

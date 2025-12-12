@@ -1,133 +1,90 @@
-import sqlite3
+# visualizations.py
+import os
 import matplotlib.pyplot as plt
+from calculations import (
+    calc_trees_per_borough,
+    calc_black_percent,
+    calc_crime_counts,
+    calc_collision_counts,
+    calc_trees_vs_black
+)
 
-DB_PATH = "nyc_data.db"
+COLORS = {
+    "trees": "#2ecc71",
+    "black": "#3498db",
+    "crime": "#e74c3c",
+    "collisions": "#9b59b6",
+}
 
-def get_connection():
-    return sqlite3.connect(DB_PATH)
+# Save plots directly in the folder where this script lives
+PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# -------------------------
-# 1. Bar chart: Trees per borough
-# -------------------------
-def plot_trees_per_borough():
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("SELECT borough, COUNT(*) FROM trees GROUP BY borough;")
-    rows = cur.fetchall()
-    conn.close()
+def plot_bar(data, xlabel, ylabel, title, filename, color):
+    if not data:
+        print(f"[visual] skip {filename}: no data")
+        return
 
-    boroughs = [r[0] for r in rows]
-    tree_counts = [r[1] for r in rows]
+    labels = [row[0] for row in data]
+    values = [row[1] for row in data]
 
-    plt.figure(figsize=(8,6))
-    plt.bar(boroughs, tree_counts, color="#2ca02c")  # green
-    plt.xlabel("Borough")
-    plt.ylabel("Tree Count")
-    plt.title("Tree Count by Borough")
-    plt.savefig("trees_per_borough.png")
+    plt.figure(figsize=(8,5))
+    plt.bar(labels, values, color=color)
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.title(title)
+    save_path = os.path.join(PROJECT_DIR, filename)
+    plt.savefig(save_path, bbox_inches='tight')  # ensures labels fit
     plt.close()
+    print(f"Saved {filename} in {PROJECT_DIR}")
 
-# -------------------------
-# 2. Bar chart: Black population percent
-# -------------------------
-def plot_black_percent():
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("SELECT borough, black_percent FROM demographics;")
-    rows = cur.fetchall()
-    conn.close()
+def plot_scatter(data, xlabel, ylabel, title, filename):
+    if not data:
+        print(f"[visual] skip {filename}: no data")
+        return
 
-    boroughs = [r[0] for r in rows]
-    black_percent = [r[1] for r in rows]
+    boroughs = [row[0] for row in data]
+    trees = [row[1] for row in data]
+    black_pct = [row[2] for row in data]
 
-    plt.figure(figsize=(8,6))
-    plt.bar(boroughs, black_percent, color="#ff7f0e")  # orange
-    plt.xlabel("Borough")
-    plt.ylabel("Black Population (%)")
-    plt.title("Black Population Percent by Borough")
-    plt.savefig("black_percent.png")
-    plt.close()
-
-# -------------------------
-# 3. Bar chart: Total crime per borough
-# -------------------------
-def plot_crime_counts():
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("SELECT borough, COUNT(*) FROM crime GROUP BY borough;")
-    rows = cur.fetchall()
-    conn.close()
-
-    boroughs = [r[0] for r in rows]
-    crime_counts = [r[1] for r in rows]
-
-    plt.figure(figsize=(8,6))
-    plt.bar(boroughs, crime_counts, color="#d62728")  # red
-    plt.xlabel("Borough")
-    plt.ylabel("Total Crime Reports")
-    plt.title("Crime Reports by Borough")
-    plt.savefig("crime_counts.png")
-    plt.close()
-
-# -------------------------
-# 4. Bar chart: Total collisions per borough
-# -------------------------
-def plot_collision_counts():
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("SELECT borough, COUNT(*) FROM collisions GROUP BY borough;")
-    rows = cur.fetchall()
-    conn.close()
-
-    boroughs = [r[0] for r in rows]
-    collision_counts = [r[1] for r in rows]
-
-    plt.figure(figsize=(8,6))
-    plt.bar(boroughs, collision_counts, color="#1f77b4")  # blue
-    plt.xlabel("Borough")
-    plt.ylabel("Total Collisions")
-    plt.title("Collisions by Borough")
-    plt.savefig("collision_counts.png")
-    plt.close()
-
-# -------------------------
-# 5. Scatter plot: Tree count vs Black population percent (JOIN)
-# -------------------------
-def plot_trees_vs_black_percent():
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("""
-        SELECT t.borough, COUNT(t.tree_id) AS tree_count, d.black_percent
-        FROM trees t
-        JOIN demographics d ON t.borough = d.borough
-        GROUP BY t.borough
-    """)
-    rows = cur.fetchall()
-    conn.close()
-
-    tree_counts = [r[1] for r in rows]
-    black_percent = [r[2] for r in rows]
-    boroughs = [r[0] for r in rows]
-
-    plt.figure(figsize=(8,6))
-    plt.scatter(tree_counts, black_percent, color="#9467bd", s=100)  # purple
+    plt.figure(figsize=(8,5))
+    plt.scatter(trees, black_pct, color="#1abc9c", s=100)
     for i, b in enumerate(boroughs):
-        plt.text(tree_counts[i], black_percent[i]+0.5, b, ha='center')
-    plt.xlabel("Tree Count")
-    plt.ylabel("Black Population (%)")
-    plt.title("Tree Count vs Black Population Percent by Borough")
-    plt.savefig("trees_vs_black_percent.png")
-    plt.close()
+        plt.text(trees[i]+0.2, black_pct[i]+0.002, b)  # adjust label slightly
 
-# -------------------------
-# Main
-# -------------------------
-def main():
-    plot_trees_per_borough()
-    plot_black_percent()
-    plot_crime_counts()
-    plot_collision_counts()
-    plot_trees_vs_black_percent()
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.title(title)
+    save_path = os.path.join(PROJECT_DIR, filename)
+    plt.savefig(save_path, bbox_inches='tight')
+    plt.close()
+    print(f"Saved {filename} in {PROJECT_DIR}")
+
+def run_all_visualizations():
+    # Trees
+    trees_data = calc_trees_per_borough()
+    plot_bar(trees_data, "Borough", "Tree Count",
+             "Trees by Borough", "trees_by_borough.png", COLORS["trees"])
+
+    # Black Population %
+    black_data = calc_black_percent()
+    plot_bar(black_data, "Borough", "% Black",
+             "Black Population % by Borough", "black_percent_by_borough.png", COLORS["black"])
+
+    # Crime
+    crime_data = calc_crime_counts()
+    plot_bar(crime_data, "Borough", "Crime Count",
+             "Crime by Borough", "crime_by_borough.png", COLORS["crime"])
+
+    # Collisions
+    collision_data = calc_collision_counts()
+    plot_bar(collision_data, "Borough", "Collision Count",
+             "Collisions by Borough", "collisions_by_borough.png", COLORS["collisions"])
+
+    # Trees vs Black %
+    trees_vs_black_data = calc_trees_vs_black()
+    plot_scatter(trees_vs_black_data,
+                 "Tree Count", "% Black",
+                 "Tree Count vs Black Population %", "trees_vs_black_percent.png")
 
 if __name__ == "__main__":
-    main()
+    run_all_visualizations()

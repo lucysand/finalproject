@@ -1,93 +1,40 @@
-# fetch_demographics.py
-
-# fetch_demographics.py
-# fetch_demographics.py
-
 import requests
-import sqlite3
-from pathlib import Path
+from db_utils import get_connection
 
-# --- CONFIG ---
-DB_PATH = "/Users/lucysanders/Desktop/SI201/finalproject/nyc_data.db"  # absolute path
-TABLE_NAME = "demographics"
-API_URL = "https://data.cityofnewyork.us/api/v3/views/uh2w-zjsn/query.json"
-LIMIT_PER_RUN = 25
-APP_TOKEN = "m2Zj3gBpqhFVI4W9XcJoz91ZE"  # replace with your Socrata token
+URL = "https://data.cityofnewyork.us/resource/uh2w-zjsn.json"
 
-# --- DATABASE UTILITIES ---
-def get_connection():
-    conn = sqlite3.connect(DB_PATH)
-    return conn
+def fetch_demo():
+    limit = 25
+    offset = 0
+    batches = 5
 
-def create_table():
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute(f"""
-        CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
-            borough TEXT PRIMARY KEY,
-            black_percent REAL
-        )
-    """)
-    conn.commit()
-    conn.close()
+    for i in range(batches):
+        print(f"[demo] fetching batch {i+1} offset {offset}")
 
-# --- FETCH DATA ---
-def safe_float(val):
-    try:
-        return float(val)
-    except (TypeError, ValueError):
-        return None
+        params = {"$limit": limit, "$offset": offset}
+        r = requests.get(URL, params=params)
+        r.raise_for_status()
+        data = r.json()
 
-def fetch_demo_batch(offset=0):
-    headers = {"X-App-Token": APP_TOKEN}
-    params = {"$limit": LIMIT_PER_RUN, "$offset": offset}
-    resp = requests.get(API_URL, headers=headers, params=params)
-    resp.raise_for_status()
-    return resp.json()
+        conn = get_connection()
+        cur = conn.cursor()
 
-# --- INSERT / UPDATE ---
-def insert_data(records):
-    conn = get_connection()
-    cur = conn.cursor()
-    inserted = 0
+        for row in data:
+            borough = row.get("borough")  # <-- correct key
+            black_percent = row.get("black_1")
+            if borough and black_percent is not None:
+                try:
+                    black_percent = float(black_percent)
+                except ValueError:
+                    continue  # skip rows with invalid data
+                cur.execute("""
+                    INSERT OR IGNORE INTO demographics (borough, black_percent)
+                    VALUES (?, ?)
+                """, (borough, black_percent))
 
-    for row in records:
-        borough = row.get("borough")
-        black_percent = safe_float(row.get("black_1"))  # column in API
+        conn.commit()
+        conn.close()
+        offset += limit
 
-        if not borough or black_percent is None:
-            continue
-
-        cur.execute(f"""
-            INSERT INTO {TABLE_NAME} (borough, black_percent)
-            VALUES (?, ?)
-            ON CONFLICT(borough) DO UPDATE SET black_percent=excluded.black_percent
-        """, (borough, black_percent))
-        inserted += 1
-
-    conn.commit()
-
-    # Print all rows to confirm
-    cur.execute(f"SELECT * FROM {TABLE_NAME}")
-    all_rows = cur.fetchall()
-    print(f"\nDatabase path: {Path(DB_PATH).resolve()}")
-    print(f"Inserted/updated {inserted} rows. Current table contents:")
-    for r in all_rows:
-        print(r)
-
-    conn.close()
-
-# --- MAIN ---
 if __name__ == "__main__":
-    create_table()
-    for offset in range(0, 125, LIMIT_PER_RUN):
-        records = fetch_demo_batch(offset=offset)
-        print(f"Fetched {len(records)} records from API (offset {offset})")
-        insert_data(records)
-
-
-
-
-
-
-
+    fetch_demo()
