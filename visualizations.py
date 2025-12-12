@@ -47,17 +47,29 @@ def plot_scatter(data, xlabel, ylabel, title, filename):
     black_pct = [row[2] for row in data]
 
     plt.figure(figsize=(8,5))
-    plt.scatter(trees, black_pct, color="#1abc9c", s=100)
+    plt.scatter(trees, black_pct, color="#1abc9c", s=120)
+
+    # Add labels with better spacing
     for i, b in enumerate(boroughs):
-        plt.text(trees[i]+0.2, black_pct[i]+0.002, b)  # adjust label slightly
+        plt.annotate(
+            b,
+            (trees[i], black_pct[i]),
+            textcoords="offset points",
+            xytext=(10, 5),     # <-- offset right and up
+            ha='left',
+            fontsize=10,
+            weight='bold'
+        )
 
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
     plt.title(title)
+
     save_path = os.path.join(PROJECT_DIR, filename)
     plt.savefig(save_path, bbox_inches='tight')
     plt.close()
     print(f"Saved {filename} in {PROJECT_DIR}")
+
 
 def run_all_visualizations():
     # Trees
