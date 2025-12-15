@@ -56,14 +56,6 @@ def create_tables():
         );
     """)
 
-    # Crime/complaints table (optional, for future expansion)
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS complaints (
-            complaint_id TEXT PRIMARY KEY,
-            borough_id INTEGER
-        );
-    """)
-
     # Weather table
     cur.execute("""
         CREATE TABLE IF NOT EXISTS weather (
